@@ -10,7 +10,7 @@ declare var AWSIoT,
   AWSBasicSessionCredentialsProvider,
   AWSIoTAttachPrincipalPolicyRequest;
 declare var AWSRegionType;
-interface AWSRegionType {}
+interface AWSRegionType { }
 
 export class Iot extends Observable {
   private IOT_ENDPOINT: string;
@@ -82,11 +82,16 @@ export class Iot extends Observable {
           NSUTF8StringEncoding
         );
         //console.log("received: "+stringVal);
-        this.callback &&
-          this.callback.onSubscribe &&
-          this.callback.onSubscribe(topic, stringVal);
+        invokeOnRunLoop(() => {
+          this.callback &&
+            this.callback.onSubscribe &&
+            this.callback.onSubscribe(topic, stringVal);
+        });
       }
     );
+  }
+  public unsubscribe(topic: string) {
+    this.iotDataManager.unsubscribeTopic(topic);
   }
   private init() {
     let credentialsProvider;
@@ -288,3 +293,10 @@ export class Iot extends Observable {
     }
   }
 }
+export let invokeOnRunLoop = (function () {
+  var runloop = CFRunLoopGetMain();
+  return function (func) {
+    CFRunLoopPerformBlock(runloop, kCFRunLoopDefaultMode, func);
+    CFRunLoopWakeUp(runloop);
+  }
+}());

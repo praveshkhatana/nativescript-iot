@@ -1,6 +1,5 @@
 package com.tns;
 
-
 import android.app.Activity;
 import android.os.Bundle;
 import android.util.Log;
@@ -27,7 +26,6 @@ import com.amazonaws.services.iot.model.AttachPrincipalPolicyRequest;
 // import com.amazonaws.services.iot.model.CreateKeysAndCertificateRequest;
 // import com.amazonaws.services.iot.model.CreateKeysAndCertificateResult;
 
-
 import java.io.UnsupportedEncodingException;
 import java.security.KeyStore;
 import java.util.UUID;
@@ -37,16 +35,16 @@ public class IotService {
     //
     static final String LOG_TAG = "IOTService";
     // IoT endpoint
-    
+
     private String CUSTOMER_SPECIFIC_ENDPOINT;
-    
+
     private String COGNITO_POOL_ID;
-    
+
     private String AWS_IOT_POLICY_NAME;
 
     // Region of AWS IoT
     private Regions MY_REGION;
-    
+
     private String KEYSTORE_NAME;
     // Password for the private key in the KeyStore
     private String KEYSTORE_PASSWORD;
@@ -55,9 +53,9 @@ public class IotService {
 
     Context ctx;
     AWSIotClient mIotAndroidClient;
-    //AWSIotMqttManager mqttManager;
+    // AWSIotMqttManager mqttManager;
     String clientId;
-    //JSONArray credentials;
+    // JSONArray credentials;
     String keystorePath;
     String keystoreName;
     String keystorePassword;
@@ -65,18 +63,18 @@ public class IotService {
 
     String identityId;
     String accessKeyId;
-        String secretAccessKey;
-        String sessionToken;
+    String secretAccessKey;
+    String sessionToken;
 
     KeyStore clientKeyStore = null;
     String certificateId;
 
-    //CognitoCachingCredentialsProvider credentialsProvider;
-    //BasicSessionCredentials credentials;
+    // CognitoCachingCredentialsProvider credentialsProvider;
+    // BasicSessionCredentials credentials;
     AWSStaticCredentialsProvider credentialsProvider;
 
-    public IotService(Context context, String endpoint, String cognitoPoolId, String policyName, String client_Id, String _identityId, String _accessKeyId,String _secretAccessKey,
-    String _sessionToken){
+    public IotService(Context context, String endpoint, String cognitoPoolId, String policyName, String client_Id,
+            String _identityId, String _accessKeyId, String _secretAccessKey, String _sessionToken) {
         CUSTOMER_SPECIFIC_ENDPOINT = endpoint;
         COGNITO_POOL_ID = cognitoPoolId;
         AWS_IOT_POLICY_NAME = policyName;
@@ -93,44 +91,34 @@ public class IotService {
         this.attachPolicy();
 
     }
-    private void attachPolicy(){
 
-        cred = new BasicSessionCredentials(accessKeyId,secretAccessKey,sessionToken);
+    private void attachPolicy() {
+
+        cred = new BasicSessionCredentials(accessKeyId, secretAccessKey, sessionToken);
         credentialsProvider = new AWSStaticCredentialsProvider(cred);
 
         Region region = Region.getRegion(MY_REGION);
 
-
-
-        
-
-        //Attach Policy
+        // Attach Policy
         mIotAndroidClient = new AWSIotClient(new AWSStaticCredentialsProvider(cred));
         mIotAndroidClient.setRegion(region);
 
-             new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
 
-                        
-                        AttachPrincipalPolicyRequest policyAttachRequest =
-                                                new AttachPrincipalPolicyRequest();
-                        policyAttachRequest.setPolicyName(AWS_IOT_POLICY_NAME);
-                        policyAttachRequest.setPrincipal(identityId);
-                        mIotAndroidClient.attachPrincipalPolicy(policyAttachRequest);
-                       
-                        
-                    } catch (Exception e) {
-                        Log.e(LOG_TAG,
-                                "Exception occurred when generating new private key and certificate.",
-                                e);
-                    }
+                    AttachPrincipalPolicyRequest policyAttachRequest = new AttachPrincipalPolicyRequest();
+                    policyAttachRequest.setPolicyName(AWS_IOT_POLICY_NAME);
+                    policyAttachRequest.setPrincipal(identityId);
+                    mIotAndroidClient.attachPrincipalPolicy(policyAttachRequest);
+
+                } catch (Exception e) {
+                    Log.e(LOG_TAG, "Exception occurred when generating new private key and certificate.", e);
                 }
-            }).start();
+            }
+        }).start();
 
-        
     }
 
 }
-

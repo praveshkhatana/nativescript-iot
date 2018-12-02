@@ -5,7 +5,7 @@ import * as utils from "tns-core-modules/utils/utils";
 declare var com;
 
 declare var IotService;
-interface IotService {}
+interface IotService { }
 
 export class Iot extends Observable {
   private keystoreName: string = "plugin_iot";
@@ -168,11 +168,14 @@ export class Iot extends Observable {
       mqttCallback.onMessageArrived = (topic, data) => {
         console.log("Message arrived:");
         console.log("   Topic: " + topic);
-        console.log(" Message: " + data.toString());
+
+        data = this.uintToString(data);
+        //console.log(" Message: " + data.toString());
         this.callback &&
           this.callback.onSubscribe &&
           this.callback.onSubscribe(topic, data);
       };
+
 
       this.mqttManager.subscribeToTopic(
         topic,
@@ -182,5 +185,13 @@ export class Iot extends Observable {
     } catch (e) {
       console.log("Subscription error.", e);
     }
+  }
+  private uintToString(uintArray) {
+    var encodedString = String.fromCharCode.apply(null, uintArray),
+      decodedString = decodeURIComponent(escape(encodedString));
+    return decodedString;
+  }
+  public unsubscribe(topic) {
+    this.mqttManager.unsubscribeTopic(topic);
   }
 }
