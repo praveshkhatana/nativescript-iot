@@ -1,16 +1,6 @@
 import { Observable } from "tns-core-modules/data/observable";
+import * as utils from 'tns-core-modules/utils/utils';
 
-declare var AWSIoT,
-  AWSIoTDataManager,
-  AWSIoTManager,
-  AWSCognitoCredentialsProvider,
-  AWSEndpoint,
-  AWSServiceConfiguration,
-  AWSServiceManager,
-  AWSBasicSessionCredentialsProvider,
-  AWSIoTAttachPrincipalPolicyRequest;
-declare var AWSRegionType;
-interface AWSRegionType { }
 
 export class Iot extends Observable {
   private IOT_ENDPOINT: string;
@@ -21,6 +11,7 @@ export class Iot extends Observable {
   private clientId: string;
   private identityId: string;
   private credentials;
+  private isReconnect: boolean = false;
   private callback: any;
 
   private CertificateSigningRequestCommonName = "IOT plugin Application";
@@ -29,10 +20,10 @@ export class Iot extends Observable {
   private CertificateSigningRequestOrganizationalUnitName = "Software";
 
   //
-  private connected: boolean = false;
   private iotDataManager: AWSIoTDataManager;
   private iotManager: AWSIoTManager;
   private iot: AWSIoT;
+
 
   constructor(
     endpoint,
@@ -40,6 +31,7 @@ export class Iot extends Observable {
     policyName,
     clientId,
     credentials,
+    isReconnect,
     callback
   ) {
     super();
@@ -50,18 +42,19 @@ export class Iot extends Observable {
     this.clientId = clientId;
     this.identityId = credentials.identityId;
     this.credentials = credentials;
+    this.isReconnect = isReconnect;
     this.callback = callback;
 
     this.init();
-    console.log(this.credentials.sessionToken);
-    console.log(this.identityId);
+
   }
 
   public disconnect() {
     this.iotDataManager.disconnect();
+
   }
   public connect() {
-    //console.log("connect");
+
     if (this.credentials != "" && this.credentials != null) {
       this.authConnect();
     } else {
@@ -81,7 +74,6 @@ export class Iot extends Observable {
           p3,
           NSUTF8StringEncoding
         );
-        //console.log("received: "+stringVal);
         invokeOnRunLoop(() => {
           this.callback &&
             this.callback.onSubscribe &&
@@ -93,37 +85,41 @@ export class Iot extends Observable {
   public unsubscribe(topic: string) {
     this.iotDataManager.unsubscribeTopic(topic);
   }
+
+
   private init() {
+
     let credentialsProvider;
     if (this.credentials != "" && this.credentials != null) {
-      credentialsProvider = new AWSBasicSessionCredentialsProvider(
+      credentialsProvider = AWSBasicSessionCredentialsProvider.alloc().initWithAccessKeySecretKeySessionToken(
         this.credentials.accessKeyId,
         this.credentials.secretAccessKey,
         this.credentials.sessionToken
       );
     } else {
-      credentialsProvider = new AWSCognitoCredentialsProvider(
+      credentialsProvider = AWSCognitoCredentialsProvider.alloc().initWithRegionTypeIdentityPoolId(
         this.AWSRegion,
         this.CognitoIdentityPoolId
       );
     }
 
-    let iotEndPoint = new AWSEndpoint(this.IOT_ENDPOINT);
+    let iotEndPoint = AWSEndpoint.alloc().initWithURLString(this.IOT_ENDPOINT);
 
     // // Configuration for AWSIoT control plane APIs
-    let iotConfiguration = new AWSServiceConfiguration(
+    let iotConfiguration = AWSServiceConfiguration.alloc().initWithRegionCredentialsProvider(
       this.AWSRegion,
       credentialsProvider
     );
 
     // Configuration for AWSIoT data plane APIs
-    let iotDataConfiguration = new AWSServiceConfiguration(
+    let iotDataConfiguration = AWSServiceConfiguration.alloc().initWithRegionEndpointCredentialsProvider(
       this.AWSRegion,
       iotEndPoint,
       credentialsProvider
     );
-
-    AWSServiceManager.defaultServiceManager().defaultServiceConfiguration = iotConfiguration;
+    const manager = utils.ios.getter(AWSServiceManager, AWSServiceManager.defaultServiceManager);
+    //AWSServiceManager.defaultServiceManager().defaultServiceConfiguration = iotConfiguration;
+    manager.defaultServiceConfiguration = iotConfiguration;
 
     this.iotManager = AWSIoTManager.defaultIoTManager();
     this.iot = AWSIoT.defaultIoT();
@@ -136,10 +132,32 @@ export class Iot extends Observable {
     this.iotDataManager = AWSIoTDataManager.IoTDataManagerForKey(
       this.ASWIoTDataManager
     );
+    if (this.isReconnect) {
+      this.connect();
+    }
+
+  }
+  public destroy() {
+    AWSIoTDataManager.removeIoTDataManagerForKey(this.ASWIoTDataManager);
+    let detachPrincipalPolicyRequest = AWSIoTDetachPrincipalPolicyRequest.new();
+
+    detachPrincipalPolicyRequest.policyName = this.PolicyName;
+    detachPrincipalPolicyRequest.principal = this.identityId;
+
+    // detach the policy
+    this.iot.detachPrincipalPolicy(detachPrincipalPolicyRequest);
+    if (this.iotDataManager) {
+      this.iotDataManager.disconnect();
+    }
+
+    this.iotManager = null;
+    this.iot = null;
+    this.iotDataManager = null;
   }
 
   private authConnect() {
-    let attachPrincipalPolicyRequest = new AWSIoTAttachPrincipalPolicyRequest();
+
+    let attachPrincipalPolicyRequest = AWSIoTAttachPrincipalPolicyRequest.new();
 
     attachPrincipalPolicyRequest.policyName = this.PolicyName;
     attachPrincipalPolicyRequest.principal = this.identityId;
@@ -147,19 +165,26 @@ export class Iot extends Observable {
     // Attach the policy to the certificate
     this.iot.attachPrincipalPolicyCompletionHandler(
       attachPrincipalPolicyRequest,
-      e => {
+      (e) => {
         console.log(e);
+        //if (!e) {
+        invokeOnRunLoop(() => {
+          this.iotDataManager.connectUsingWebSocketWithClientIdCleanSessionStatusCallback(
+            this.clientId,
+            true,
+            status => {
+              this.callback &&
+                this.callback.onMqttEventCallback &&
+                this.callback.onMqttEventCallback(status);
+            }
+          );
+        });
+
+
+        //}
       }
     );
-    this.iotDataManager.connectUsingWebSocketWithClientIdCleanSessionStatusCallback(
-      this.clientId,
-      true,
-      status => {
-        this.callback &&
-          this.callback.onMqttEventCallback &&
-          this.callback.onMqttEventCallback(status);
-      }
-    );
+
   }
 
   //Attach Policy If user is Guest/unAuth
@@ -199,16 +224,21 @@ export class Iot extends Observable {
 
             console.log("Using certificate: " + myImages[0]);
 
-            this.iotDataManager.connectWithClientIdCleanSessionCertificateIdStatusCallback(
-              this.clientId,
-              true,
-              myImages[0],
-              status => {
-                this.callback &&
-                  this.callback.onMqttEventCallback &&
-                  this.callback.onMqttEventCallback(status);
-              }
-            );
+
+            invokeOnRunLoop(() => {
+              this.iotDataManager.connectWithClientIdCleanSessionCertificateIdStatusCallback(
+                this.clientId,
+                true,
+                myImages[0],
+                status => {
+                  this.callback &&
+                    this.callback.onMqttEventCallback &&
+                    this.callback.onMqttEventCallback(status);
+                }
+              );
+            });
+
+
           }
         }
       }
@@ -249,7 +279,7 @@ export class Iot extends Observable {
               );
               console.log("response certificateId: " + response.certificateId);
 
-              let attachPrincipalPolicyRequest = new AWSIoTAttachPrincipalPolicyRequest();
+              let attachPrincipalPolicyRequest = AWSIoTAttachPrincipalPolicyRequest.new();
 
               attachPrincipalPolicyRequest.policyName = this.PolicyName;
               attachPrincipalPolicyRequest.principal = response.certificateArn;
@@ -259,18 +289,23 @@ export class Iot extends Observable {
                 attachPrincipalPolicyRequest,
                 e => {
                   console.log(e);
+                  if (!e) {
+                    invokeOnRunLoop(() => {
+                      this.iotDataManager.connectWithClientIdCleanSessionCertificateIdStatusCallback(
+                        this.clientId,
+                        true,
+                        certificateId,
+                        status => {
+                          this.callback &&
+                            this.callback.onMqttEventCallback &&
+                            this.callback.onMqttEventCallback(status);
+                        }
+                      );
+                    });
+                  }
                 }
               );
-              this.iotDataManager.connectWithClientIdCleanSessionCertificateIdStatusCallback(
-                this.clientId,
-                true,
-                certificateId,
-                status => {
-                  this.callback &&
-                    this.callback.onMqttEventCallback &&
-                    this.callback.onMqttEventCallback(status);
-                }
-              );
+
             } else {
               console.log("noooo");
             }
@@ -293,6 +328,7 @@ export class Iot extends Observable {
     }
   }
 }
+
 export let invokeOnRunLoop = (function () {
   var runloop = CFRunLoopGetMain();
   return function (func) {

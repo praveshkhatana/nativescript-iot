@@ -1,1 +1,1 @@
-export * from "./iot.android";
+export * from "./iot.ios";

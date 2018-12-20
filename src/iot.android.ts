@@ -44,6 +44,7 @@ export class Iot extends Observable {
 
   private credentialsProvider: any;
   private cred: any;
+  private isReconnect: boolean = false;
 
   constructor(
     endpoint,
@@ -51,6 +52,7 @@ export class Iot extends Observable {
     policyName,
     clientId,
     credentials,
+    isReconnect,
     callback
   ) {
     super();
@@ -63,6 +65,7 @@ export class Iot extends Observable {
     this.KEYSTORE_NAME = "iot_keystore3";
     this.KEYSTORE_PASSWORD = "password3";
     this.CERTIFICATE_ID = "default3";
+    this.isReconnect = isReconnect;
     this.callback = callback;
 
     this.ctx = utils.ad.getApplicationContext();
@@ -103,7 +106,9 @@ export class Iot extends Observable {
       console.log("Disconnect error.", e);
     }
   }
+  public destroy() {
 
+  }
   //
   private attachPolicy() {
     this.cred = new com.amazonaws.auth.BasicSessionCredentials(
@@ -134,6 +139,9 @@ export class Iot extends Observable {
       com.amazonaws.mobileconnectors.iot.AWSIotMqttQos.QOS0
     );
     this.mqttManager.setMqttLastWillAndTestament(lwt);
+    if (this.isReconnect) {
+      this.connect();
+    }
   }
 
   public disconnect() {
@@ -194,4 +202,5 @@ export class Iot extends Observable {
   public unsubscribe(topic) {
     this.mqttManager.unsubscribeTopic(topic);
   }
+
 }
